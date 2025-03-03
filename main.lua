@@ -11,6 +11,9 @@ local world
 
 local background
 
+local cameraX = 0
+local cameraY = 0
+
 function love.load(dt)
     -- Tämä ajetaan, kun peli käynnistyy
     world = love.physics.newWorld(0, 800, true)
@@ -29,11 +32,20 @@ function love.load(dt)
 
 
     local platformData = {
-        { x = 1600, y = 700,  width = 200,  height = 50 },
-        { x = 300,  y = 900,  width = 400,  height = 50 },
-        { x = 800,  y = 1000, width = 5000, height = 50 },
-        { x = 1300, y = 900,  width = 400,  height = 50 },
-        { x = 800,  y = 800,  width = 400,  height = 50 },
+        { x = 300,  y = 900, width = 400, height = 50 },
+        { x = 700,  y = 950, width = 400, height = 50 },
+        { x = 1100, y = 880, width = 400, height = 50 },
+        { x = 1500, y = 920, width = 400, height = 50 },
+        { x = 1900, y = 850, width = 400, height = 50 },
+        { x = 2300, y = 900, width = 400, height = 50 },
+        { x = 2700, y = 950, width = 400, height = 50 },
+        { x = 3100, y = 870, width = 400, height = 50 },
+        { x = 3500, y = 920, width = 400, height = 50 },
+        { x = 3900, y = 850, width = 400, height = 50 },
+        { x = 4300, y = 900, width = 400, height = 50 },
+        { x = 4700, y = 950, width = 400, height = 50 },
+        { x = 5100, y = 880, width = 400, height = 50 },
+        { x = 5500, y = 920, width = 400, height = 50 },
     }
 
     -- Luo alustat
@@ -69,12 +81,17 @@ function love.update(dt)
             end
         end
     end
+
+    cameraX = player.body:getX() - love.graphics.getWidth() / 2
 end
 
 function love.draw()
     -- Piirrä kaikki pelin elementit
     love.graphics.draw(background, 0, 0, 0, love.graphics.getWidth() / background:getWidth(),
         love.graphics.getHeight() / background:getHeight())
+
+    love.graphics.translate(-cameraX, -cameraY)
+
     love.graphics.draw(
         player.sprite,                             -- Sprite-kuva
         player.body:getX(),                        -- Pelaajan fysiikkakappaleen X-sijainti
