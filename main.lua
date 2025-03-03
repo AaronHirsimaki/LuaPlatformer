@@ -9,9 +9,13 @@ local platforms = {}
 
 local world
 
+local background
+
 function love.load(dt)
     -- Tämä ajetaan, kun peli käynnistyy
     world = love.physics.newWorld(0, 800, true)
+
+    background = love.graphics.newImage("sprites/PeliTausta.png")
 
     player.body = love.physics.newBody(world, 100, 100, "dynamic")             -- (world, x, y, tyyppi)
     player.shape = love.physics.newRectangleShape(player.width, player.height) -- Pelaajan koko
@@ -20,16 +24,16 @@ function love.load(dt)
     player.fixture:setRestitution(0)                                           -- Hyppimisen elastisuus (0 = ei pomppaa)
 
     -- Skaalauskerroin spriteä varten
-    player.scaleX = player.width / player.sprite:getWidth()       -- Skaalaus leveydelle
-    player.scaleY = player.height / player.sprite:getHeight()     -- Skaalaus korkeudelle
+    player.scaleX = player.width / player.sprite:getWidth()   -- Skaalaus leveydelle
+    player.scaleY = player.height / player.sprite:getHeight() -- Skaalaus korkeudelle
 
 
     local platformData = {
-        { x = 1400, y = 900,  width = 800, height = 50 },
-        { x = 500,  y = 500,  width = 200, height = 50 },
-        { x = 700,  y = 1000, width = 500, height = 50 },
-        { x = 100,  y = 400,  width = 400, height = 50 },
-        { x = 1600, y = 200,  width = 400, height = 50 },
+        { x = 1600, y = 700,  width = 200,  height = 50 },
+        { x = 300,  y = 900,  width = 400,  height = 50 },
+        { x = 800,  y = 1000, width = 5000, height = 50 },
+        { x = 1300, y = 900,  width = 400,  height = 50 },
+        { x = 800,  y = 800,  width = 400,  height = 50 },
     }
 
     -- Luo alustat
@@ -69,15 +73,17 @@ end
 
 function love.draw()
     -- Piirrä kaikki pelin elementit
+    love.graphics.draw(background, 0, 0, 0, love.graphics.getWidth() / background:getWidth(),
+        love.graphics.getHeight() / background:getHeight())
     love.graphics.draw(
-        player.sprite,                                 -- Sprite-kuva
-        player.body:getX(),                            -- Pelaajan fysiikkakappaleen X-sijainti
-        player.body:getY(),                            -- Pelaajan fysiikkakappaleen Y-sijainti
-        player.body:getAngle(),                        -- Pelaajan fysiikkakappaleen kulma
-        player.width / player.sprite:getWidth(),       -- Skaalaus X-suunnassa
-        player.height / player.sprite:getHeight(),     -- Skaalaus Y-suunnassa
-        player.sprite:getWidth() / 2,                  -- Siirrä kuvan keskipiste X-akselilla
-        player.sprite:getHeight() / 2                  -- Siirrä kuvan keskipiste Y-akselilla
+        player.sprite,                             -- Sprite-kuva
+        player.body:getX(),                        -- Pelaajan fysiikkakappaleen X-sijainti
+        player.body:getY(),                        -- Pelaajan fysiikkakappaleen Y-sijainti
+        player.body:getAngle(),                    -- Pelaajan fysiikkakappaleen kulma
+        player.width / player.sprite:getWidth(),   -- Skaalaus X-suunnassa
+        player.height / player.sprite:getHeight(), -- Skaalaus Y-suunnassa
+        player.sprite:getWidth() / 2,              -- Siirrä kuvan keskipiste X-akselilla
+        player.sprite:getHeight() / 2              -- Siirrä kuvan keskipiste Y-akselilla
     )
     for _, platform in ipairs(platforms) do
         love.graphics.polygon("fill", platform.body:getWorldPoints(platform.shape:getPoints()))
