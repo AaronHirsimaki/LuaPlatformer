@@ -3,6 +3,8 @@ local player = {
     height = 50,
     speed = 200,
     jumpPower = -400,
+    maxJumps = 2,
+    jumcount = 0
 }
 
 local platforms = {}
@@ -29,6 +31,8 @@ function love.load(dt)
     -- Skaalauskerroin spriteä varten
     player.scaleX = player.width / player.sprite:getWidth()   -- Skaalaus leveydelle
     player.scaleY = player.height / player.sprite:getHeight() -- Skaalaus korkeudelle
+
+    player.jumcount = 0
 
 
     local platformData = {
@@ -73,12 +77,29 @@ function love.update(dt)
     end
 
     if love.keyboard.isDown("space") then
-        local contacts = player.body:getContactList() -- Tarkista törmäykset
-        for _, contact in ipairs(contacts) do
-            if contact:isTouching() then
-                player.body:applyLinearImpulse(0, player.jumpPower) -- Hyppää, jos on maassa
+        local isOnGround = false
+
+        -- Tarkistetaan pelaajan maassa olo
+        for _, contact in ipairs(player.body:getContacts()) do
+            local fixture1, fixture2 = contact:getFixtures() -- Hae molemmat törmäävät objektit
+            local otherBody = fixture1:getBody() == player.body and fixture2:getBody() or fixture1:getBody()
+
+            -- Tarkista, onko toinen objekti alusta ja pelaaja maassa
+            if otherBody:getType() == "static" then
+                isOnGround = true -- Pelaaja on maassa, jos on yhteys staattiseen alustaan
                 break
             end
+        end
+
+        -- Jos pelaaja on maassa, nollaa hyppyjen laskuri
+        if isOnGround then
+            player.jumpCount = 0
+        end
+
+        -- Hyppää, jos hyppyjä on jäljellä
+        if player.jumpCount < player.maxJumps then
+            player.body:applyLinearImpulse(0, player.jumpPower) -- Hyppy
+            player.jumpCount = player.jumpCount + 1             -- Lisää hyppyjen määrä
         end
     end
 
