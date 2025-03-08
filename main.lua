@@ -7,6 +7,22 @@ local player = {
     jumcount = 0
 }
 
+local npcHuman = {
+    x = 500,
+    y = 850,
+    width = 100,
+    height = 100,
+    speed = 200,
+    jumpPower = -3000,
+    maxJumps = 2,
+    jumcount = 0,
+    direction = 1,
+    patrolDistance = 300,
+    startX = 500,
+    isOnGround = false,
+    canJump = true
+}
+
 local platforms = {}
 
 local world
@@ -36,6 +52,19 @@ function love.load(dt)
 
     player.scaleX = player.width / player.sprite:getWidth()
     player.scaleY = player.height / player.sprite:getHeight()
+    
+    npcHuman.body = love.physics.newBody(world, npcHuman.x, npcHuman.y, "dynamic")
+    npcHuman.shape = love.physics.newRectangleShape(npcHuman.width, npcHuman.height)
+    npcHuman.sprite = love.graphics.newImage('sprites/duck.png')
+    npcHuman.fixture = love.physics.newFixture(npcHuman.body, npcHuman.shape, 1)
+    npcHuman.fixture:setRestitution(0)
+
+    npcHuman.scaleX = npcHuman.width / npcHuman.sprite:getWidth()
+    npcHuman.scaleY = npcHuman.height / npcHuman.sprite:getHeight()
+
+    -- Asetetaan NPC:n liikesuunta
+    npcHuman.direction = 1
+
 
     player.jumpcount = 0
 
@@ -106,9 +135,58 @@ function love.update(dt)
             player.jumpcount = player.jumpcount + 1
         end
     end
+    
+    -- Nollaa maassaolon tila joka päivityksessä
+    npcHuman.isOnGround = false
+    
+    if npcHuman.isOnGround then
+        npcHuman.body:setLinearVelocity(npcHuman.speed * npcHuman.direction, 0)
+    else
+        local vx, vy = npcHuman.body:getLinearVelocity()
+        npcHuman.body:setLinearVelocity(npcHuman.speed * npcHuman.direction, vy)
+    end
+
+
+
+
+    -- Vaihda suuntaa, jos NPC on saavuttanut partioalueen reunat
+    if math.abs(npcHuman.body:getX() - npcHuman.startX) >= npcHuman.patrolDistance then
+        npcHuman.direction = npcHuman.direction * -1
+    end
+    
+    -- Tarkista, osuuko NPC seinään tai maahan
+    for _, contact in ipairs(npcHuman.body:getContacts()) do
+        if contact:isTouching() then
+            local fixtureA, fixtureB = contact:getFixtures()
+            local otherBody = fixtureA:getBody() == npcHuman.body and fixtureB:getBody() or fixtureA:getBody()
+            
+            if otherBody:getType() == "static" then
+                local normalX, normalY = contact:getNormal()
+                
+                -- Tarkista alustakosketus
+                if normalY < 0 then
+                    npcHuman.isOnGround = true
+                    npcHuman.canJump = true -- Salli hyppy
+                end
+    
+                -- Tarkista seinäosuma (vain jos maassa)
+                if math.abs(normalX) > 0.7 and npcHuman.isOnGround and npcHuman.canJump then
+                    npcHuman.body:applyLinearImpulse(0, npcHuman.jumpPower)
+                    npcHuman.canJump = false -- Estä hyppy, kunnes laskeutuu
+                end
+            end
+        end
+    end
+
+
+
+
     keysPressed = {}
 
     cameraX = player.body:getX() - love.graphics.getWidth() / 2
+    
+    
+
 end
 
 function love.draw()
@@ -128,6 +206,18 @@ function love.draw()
         player.sprite:getWidth() / 2,
         player.sprite:getHeight() / 2
     )
+    
+    love.graphics.draw(
+        npcHuman.sprite,
+        npcHuman.body:getX(),
+        npcHuman.body:getY(),
+        npcHuman.body:getAngle(),
+        npcHuman.scaleX,
+        npcHuman.scaleY,
+        npcHuman.sprite:getWidth() / 2,
+        npcHuman.sprite:getHeight() / 2
+    )
+
     for _, platform in ipairs(platforms) do
         love.graphics.polygon("fill", platform.body:getWorldPoints(platform.shape:getPoints()))
     end
