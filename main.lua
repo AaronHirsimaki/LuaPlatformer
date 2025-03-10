@@ -13,7 +13,7 @@ local npcHuman = {
     width = 100,
     height = 100,
     speed = 200,
-    jumpPower = -3000,
+    jumpPower = -2000,
     maxJumps = 2,
     jumcount = 0,
     direction = 1,
@@ -34,13 +34,36 @@ local cameraY = 0
 
 local keysPressed = {}
 
+local gameState = "menu" -- Alustetaan pelin tila valikkoon
+
 function love.keypressed(key)
     keysPressed[key] = true
+
+    if gameState == "menu" then
+        if key == "return" then     -- Enter aloittaa pelin
+            gameState = "game"
+        elseif key == "escape" then -- Escape sulkee pelin
+            love.event.quit()
+        end
+    elseif gameState == "game" then
+        if key == "escape" then -- Esc kesken pelin -> Pause-tila
+            gameState = "paused"
+        end
+    elseif gameState == "paused" then
+        if key == "return" then     -- Enter jatkaa peliä
+            gameState = "game"
+        elseif key == "escape" then -- Esc palaa päävalikkoon
+            gameState = "menu"
+        end
+    end
 end
 
 function love.load(dt)
     -- Tämä ajetaan, kun peli käynnistyy
-    world = love.physics.newWorld(0, 800, true)
+    local gravity = 800
+    world = love.physics.newWorld(0, gravity, true)
+
+    love.window.setTitle("Zero Ducks Given")
 
     background = love.graphics.newImage("sprites/woodedmountain.png")
 
@@ -52,12 +75,15 @@ function love.load(dt)
 
     player.scaleX = player.width / player.sprite:getWidth()
     player.scaleY = player.height / player.sprite:getHeight()
-    
+
     npcHuman.body = love.physics.newBody(world, npcHuman.x, npcHuman.y, "dynamic")
     npcHuman.shape = love.physics.newRectangleShape(npcHuman.width, npcHuman.height)
     npcHuman.sprite = love.graphics.newImage('sprites/duck.png')
     npcHuman.fixture = love.physics.newFixture(npcHuman.body, npcHuman.shape, 1)
     npcHuman.fixture:setRestitution(0)
+    npcHuman.speed = 100          -- NPC:n nopeus
+    npcHuman.jumpPower = -1500    -- Hyppyvoima
+    npcHuman.patrolDistance = 300 -- Partiointimatka (jos ei seuraa pelaajaa)
 
     npcHuman.scaleX = npcHuman.width / npcHuman.sprite:getWidth()
     npcHuman.scaleY = npcHuman.height / npcHuman.sprite:getHeight()
@@ -100,125 +126,152 @@ function love.keyboard.wasPressed(key)
 end
 
 function love.update(dt)
-    -- Päivitä pelin logiikkaa (dt on aika viime ruudunpäivityksestä)
-    world:update(dt)
+    -- Tarkista pelitila ennen päivityksiä
+    if gameState == "game" then
+        -- Päivitä pelin logiikkaa vain pelitilassa
+        world:update(dt)
 
-    local vx, vy = player.body:getLinearVelocity()
-    if love.keyboard.isDown("a") then
-        player.body:setLinearVelocity(-player.speed, vy)
-    elseif love.keyboard.isDown("d") then
-        player.body:setLinearVelocity(player.speed, vy)
-    else
-        player.body:setLinearVelocity(0, vy)
-    end
+        -- Pelaajan liikkeet
+        local vx, vy = player.body:getLinearVelocity()
 
-    if love.keyboard.isDown("space") then
-        local isOnGround = false
+        if love.keyboard.isDown("a") then
+            player.body:setLinearVelocity(-player.speed, vy)
+        elseif love.keyboard.isDown("d") then
+            player.body:setLinearVelocity(player.speed, vy)
+        else
+            player.body:setLinearVelocity(0, vy)
+        end
 
-        for _, contact in ipairs(player.body:getContacts()) do
-            local fixture1, fixture2 = contact:getFixtures()
-            local otherBody = fixture1:getBody() == player.body and fixture2:getBody() or fixture1:getBody()
+        -- Pelaajan hyppy
+        if love.keyboard.isDown("space") then
+            local isOnGround = false
 
+            for _, contact in ipairs(player.body:getContacts()) do
+                local fixture1, fixture2 = contact:getFixtures()
+                local otherBody = fixture1:getBody() == player.body and fixture2:getBody() or fixture1:getBody()
+
+                if contact:isTouching() then
+                    isOnGround = true
+                    break
+                end
+            end
+
+            if isOnGround then
+                player.jumpcount = 0
+            end
+
+            if love.keyboard.wasPressed("space") and player.jumpcount < player.maxJumps then
+                player.body:setLinearVelocity(vx, 0)
+                player.body:applyLinearImpulse(0, player.jumpPower)
+                player.jumpcount = player.jumpcount + 1
+            end
+        end
+
+        -- NPC:n maassaolotila ja seuranta
+        npcHuman.isOnGround = false
+        local distanceToPlayer = math.abs(player.body:getX() - npcHuman.body:getX())
+        local followRange = 600
+
+        if distanceToPlayer <= followRange then
+            npcHuman.direction = player.body:getX() > npcHuman.body:getX() and 1 or -1
+        end
+
+        -- NPC liikkuminen
+        if npcHuman.isOnGround then
+            npcHuman.body:setLinearVelocity(npcHuman.speed * npcHuman.direction, 0)
+        else
+            local vx, vy = npcHuman.body:getLinearVelocity()
+            npcHuman.body:setLinearVelocity(npcHuman.speed * npcHuman.direction, vy * 0.9)
+        end
+
+        -- NPC:n partiointi
+        if math.abs(npcHuman.body:getX() - npcHuman.startX) >= npcHuman.patrolDistance then
+            npcHuman.direction = npcHuman.direction * -1
+        end
+
+        -- NPC:n hyppy esteiden yli
+        for _, contact in ipairs(npcHuman.body:getContacts()) do
             if contact:isTouching() then
-                isOnGround = true
-                break
-            end
-        end
+                local fixtureA, fixtureB = contact:getFixtures()
+                local otherBody = fixtureA:getBody() == npcHuman.body and fixtureB:getBody() or fixtureA:getBody()
 
-        if isOnGround then
-            player.jumpcount = 0
-        end
+                if otherBody:getType() == "static" then
+                    local normalX, normalY = contact:getNormal()
+                    if normalY > -0.1 then
+                        npcHuman.isOnGround = true
+                        npcHuman.canJump = true
+                    end
 
-        if love.keyboard.wasPressed("space") and player.jumpcount < player.maxJumps then
-            player.body:setLinearVelocity(vx, 0)
-            player.body:applyLinearImpulse(0, player.jumpPower)
-            player.jumpcount = player.jumpcount + 1
-        end
-    end
-    
-    -- Nollaa maassaolon tila joka päivityksessä
-    npcHuman.isOnGround = false
-    
-    if npcHuman.isOnGround then
-        npcHuman.body:setLinearVelocity(npcHuman.speed * npcHuman.direction, 0)
-    else
-        local vx, vy = npcHuman.body:getLinearVelocity()
-        npcHuman.body:setLinearVelocity(npcHuman.speed * npcHuman.direction, vy)
-    end
-
-
-
-
-    -- Vaihda suuntaa, jos NPC on saavuttanut partioalueen reunat
-    if math.abs(npcHuman.body:getX() - npcHuman.startX) >= npcHuman.patrolDistance then
-        npcHuman.direction = npcHuman.direction * -1
-    end
-    
-    -- Tarkista, osuuko NPC seinään tai maahan
-    for _, contact in ipairs(npcHuman.body:getContacts()) do
-        if contact:isTouching() then
-            local fixtureA, fixtureB = contact:getFixtures()
-            local otherBody = fixtureA:getBody() == npcHuman.body and fixtureB:getBody() or fixtureA:getBody()
-            
-            if otherBody:getType() == "static" then
-                local normalX, normalY = contact:getNormal()
-                
-                -- Tarkista alustakosketus
-                if normalY < 0 then
-                    npcHuman.isOnGround = true
-                    npcHuman.canJump = true -- Salli hyppy
-                end
-    
-                -- Tarkista seinäosuma (vain jos maassa)
-                if math.abs(normalX) > 0.7 and npcHuman.isOnGround and npcHuman.canJump then
-                    npcHuman.body:applyLinearImpulse(0, npcHuman.jumpPower)
-                    npcHuman.canJump = false -- Estä hyppy, kunnes laskeutuu
+                    if math.abs(normalX) > 0.7 and npcHuman.isOnGround and npcHuman.canJump then
+                        npcHuman.body:setLinearVelocity(0, 0)
+                        npcHuman.body:applyLinearImpulse(0, npcHuman.jumpPower)
+                        npcHuman.canJump = false
+                    end
                 end
             end
         end
+
+        -- Puhdistetaan painetut näppäimet ja päivitetään kamera
+        keysPressed = {}
+        cameraX = player.body:getX() - love.graphics.getWidth() / 2
     end
-
-
-
-
-    keysPressed = {}
-
-    cameraX = player.body:getX() - love.graphics.getWidth() / 2
-    
-    
-
 end
 
 function love.draw()
-    -- Piirrä kaikki pelin elementit
-    love.graphics.draw(background, 0, 0, 0, love.graphics.getWidth() / background:getWidth(),
-        love.graphics.getHeight() / background:getHeight())
+    if gameState == "menu" then
+        drawMenu()
+    elseif gameState == "game" then
+        -- Piirrä tausta vain pelitilassa
+        love.graphics.draw(background, 0, 0, 0, love.graphics.getWidth() / background:getWidth(),
+            love.graphics.getHeight() / background:getHeight())
 
-    love.graphics.translate(-cameraX, -cameraY)
+        love.graphics.translate(-cameraX, -cameraY)
 
-    love.graphics.draw(
-        player.sprite,
-        player.body:getX(),
-        player.body:getY(),
-        player.body:getAngle(),
-        player.width / player.sprite:getWidth(),
-        player.height / player.sprite:getHeight(),
-        player.sprite:getWidth() / 2,
-        player.sprite:getHeight() / 2
-    )
-    
-    love.graphics.draw(
-        npcHuman.sprite,
-        npcHuman.body:getX(),
-        npcHuman.body:getY(),
-        npcHuman.body:getAngle(),
-        npcHuman.scaleX,
-        npcHuman.scaleY,
-        npcHuman.sprite:getWidth() / 2,
-        npcHuman.sprite:getHeight() / 2
-    )
+        love.graphics.draw(
+            player.sprite,
+            player.body:getX(),
+            player.body:getY(),
+            player.body:getAngle(),
+            player.width / player.sprite:getWidth(),
+            player.height / player.sprite:getHeight(),
+            player.sprite:getWidth() / 2,
+            player.sprite:getHeight() / 2
+        )
 
-    for _, platform in ipairs(platforms) do
-        love.graphics.polygon("fill", platform.body:getWorldPoints(platform.shape:getPoints()))
+        love.graphics.draw(
+            npcHuman.sprite,
+            npcHuman.body:getX(),
+            npcHuman.body:getY(),
+            npcHuman.body:getAngle(),
+            npcHuman.scaleX,
+            npcHuman.scaleY,
+            npcHuman.sprite:getWidth() / 2,
+            npcHuman.sprite:getHeight() / 2
+        )
+
+        for _, platform in ipairs(platforms) do
+            love.graphics.polygon("fill", platform.body:getWorldPoints(platform.shape:getPoints()))
+        end
+    elseif gameState == "paused" then
+        drawPaused()
     end
+end
+
+function drawMenu()
+    love.graphics.clear(0.2, 0.2, 0.2)
+    love.graphics.printf("Main Menu", 0, 100, love.graphics.getWidth(), "center")
+    love.graphics.printf("Press Enter to Start", 0, 150, love.graphics.getWidth(), "center")
+    love.graphics.printf("Press Escape to Quit", 0, 200, love.graphics.getWidth(), "center")
+end
+
+function drawPaused()
+    love.graphics.clear(0.1, 0.1, 0.1)
+    love.graphics.printf("Game Paused", 0, 100, love.graphics.getWidth(), "center")
+    love.graphics.printf("Press Enter to Resume", 0, 150, love.graphics.getWidth(), "center")
+    love.graphics.printf("Press Escape to Return to Menu", 0, 200, love.graphics.getWidth(), "center")
+end
+
+function drawGame()
+    love.graphics.clear(0.1, 0.1, 0.3)
+    love.graphics.printf("Game Running! Press Escape to return to Menu", 0, 100, love.graphics.getWidth(), "center")
 end
