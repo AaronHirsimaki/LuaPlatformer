@@ -1,11 +1,4 @@
-local player = {
-    width = 100,
-    height = 100,
-    speed = 200,
-    jumpPower = -3000,
-    maxJumps = 2,
-    jumcount = 0
-}
+local player = require("player")
 
 local npcHuman = {
     x = 500,
@@ -15,7 +8,7 @@ local npcHuman = {
     speed = 200,
     jumpPower = -2000,
     maxJumps = 2,
-    jumcount = 0,
+    jumpcount = 0,
     direction = 1,
     patrolDistance = 300,
     startX = 500,
@@ -38,6 +31,10 @@ local gameState = "menu" -- Alustetaan pelin tila valikkoon
 
 function love.keypressed(key)
     keysPressed[key] = true
+
+    if player.keypressed then
+        player.keypressed(key)
+    end
 
     if gameState == "menu" then
         if key == "return" then     -- Enter aloittaa pelin
@@ -63,18 +60,11 @@ function love.load(dt)
     local gravity = 800
     world = love.physics.newWorld(0, gravity, true)
 
+    player.load(world)
+
     love.window.setTitle("Zero Ducks Given")
 
     background = love.graphics.newImage("sprites/woodedmountain.png")
-
-    player.body = love.physics.newBody(world, 100, 100, "dynamic")
-    player.shape = love.physics.newRectangleShape(player.width, player.height)
-    player.sprite = love.graphics.newImage('sprites/duck.png')
-    player.fixture = love.physics.newFixture(player.body, player.shape, 1)
-    player.fixture:setRestitution(0)
-
-    player.scaleX = player.width / player.sprite:getWidth()
-    player.scaleY = player.height / player.sprite:getHeight()
 
     npcHuman.body = love.physics.newBody(world, npcHuman.x, npcHuman.y, "dynamic")
     npcHuman.shape = love.physics.newRectangleShape(npcHuman.width, npcHuman.height)
@@ -131,41 +121,7 @@ function love.update(dt)
         -- Päivitä pelin logiikkaa vain pelitilassa
         world:update(dt)
 
-        -- Pelaajan liikkeet
-        local vx, vy = player.body:getLinearVelocity()
-
-        if love.keyboard.isDown("a") then
-            player.body:setLinearVelocity(-player.speed, vy)
-        elseif love.keyboard.isDown("d") then
-            player.body:setLinearVelocity(player.speed, vy)
-        else
-            player.body:setLinearVelocity(0, vy)
-        end
-
-        -- Pelaajan hyppy
-        if love.keyboard.isDown("space") then
-            local isOnGround = false
-
-            for _, contact in ipairs(player.body:getContacts()) do
-                local fixture1, fixture2 = contact:getFixtures()
-                local otherBody = fixture1:getBody() == player.body and fixture2:getBody() or fixture1:getBody()
-
-                if contact:isTouching() then
-                    isOnGround = true
-                    break
-                end
-            end
-
-            if isOnGround then
-                player.jumpcount = 0
-            end
-
-            if love.keyboard.wasPressed("space") and player.jumpcount < player.maxJumps then
-                player.body:setLinearVelocity(vx, 0)
-                player.body:applyLinearImpulse(0, player.jumpPower)
-                player.jumpcount = player.jumpcount + 1
-            end
-        end
+        player.update(dt)
 
         -- NPC:n maassaolotila ja seuranta
         npcHuman.isOnGround = false
@@ -210,9 +166,6 @@ function love.update(dt)
                 end
             end
         end
-
-        -- Puhdistetaan painetut näppäimet ja päivitetään kamera
-        keysPressed = {}
         cameraX = player.body:getX() - love.graphics.getWidth() / 2
     end
 end
@@ -227,16 +180,7 @@ function love.draw()
 
         love.graphics.translate(-cameraX, -cameraY)
 
-        love.graphics.draw(
-            player.sprite,
-            player.body:getX(),
-            player.body:getY(),
-            player.body:getAngle(),
-            player.width / player.sprite:getWidth(),
-            player.height / player.sprite:getHeight(),
-            player.sprite:getWidth() / 2,
-            player.sprite:getHeight() / 2
-        )
+        player.draw()
 
         love.graphics.draw(
             npcHuman.sprite,
