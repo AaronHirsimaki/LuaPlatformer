@@ -29,6 +29,39 @@ local keysPressed = {}
 
 local gameState = "menu" -- Alustetaan pelin tila valikkoon
 
+local menus = {
+    main = {
+        title = "Main Menu",
+        options = { "Start Game", "Options", "Quit" }
+    },
+    options = {
+        title = "Options",
+        options = { "Sound: ON", "Back" }
+    },
+    pause = {
+        title = "Game Paused",
+        options = { "Resume", "Main Menu" }
+    }
+}
+
+local font = love.graphics.newFont(32)
+local currentMenu = "main"
+local menu = menus[currentMenu] -- Nykyinen valikko
+
+if key == "down" then
+    selectedOption = math.min(selectedOption + 1, #menu.options)
+elseif key == "up" then
+    selectedOption = math.max(selectedOption - 1, 1)
+elseif key == "return" then
+    handleMenuSelection() -- Kutsutaan toimintoja
+elseif key == "escape" then
+    if currentMenu ~= "main" then
+        currentMenu = "main" -- Paluu päävalikkoon
+        selectedOption = 1
+    end
+end
+local selectedOption = 1
+
 function love.keypressed(key)
     keysPressed[key] = true
 
@@ -37,20 +70,37 @@ function love.keypressed(key)
     end
 
     if gameState == "menu" then
-        if key == "return" then     -- Enter aloittaa pelin
-            gameState = "game"
-        elseif key == "escape" then -- Escape sulkee pelin
-            love.event.quit()
+        if key == "return" then
+            gameState = "game" -- Aloitetaan peli
+        elseif key == "escape" then
+            love.event.quit()  -- Suljetaan peli
         end
     elseif gameState == "game" then
-        if key == "escape" then -- Esc kesken pelin -> Pause-tila
-            gameState = "paused"
+        if key == "escape" then
+            gameState = "paused" -- Vaihdetaan taukovalikkoon
         end
     elseif gameState == "paused" then
-        if key == "return" then     -- Enter jatkaa peliä
-            gameState = "game"
-        elseif key == "escape" then -- Esc palaa päävalikkoon
-            gameState = "menu"
+        if key == "return" then
+            gameState = "game" -- Jatketaan peliä
+        elseif key == "escape" then
+            gameState = "menu" -- Palaa päävalikkoon
+        end
+    end
+
+    -- Päivitetään valikon valintaa
+    local menu = menus[currentMenu] -- Nykyinen valikko
+
+    -- Valikon valinnan käsittely
+    if key == "down" then
+        selectedOption = math.min(selectedOption + 1, #menus[currentMenu].options)
+    elseif key == "up" then
+        selectedOption = math.max(selectedOption - 1, 1)
+    elseif key == "return" then
+        handleMenuSelection()
+    elseif key == "escape" then
+        if currentMenu ~= "main" then
+            currentMenu = "main" -- Palaa päävalikkoon
+            selectedOption = 1
         end
     end
 end
@@ -172,7 +222,7 @@ end
 
 function love.draw()
     if gameState == "menu" then
-        drawMenu()
+        drawMenu(menus.main)
     elseif gameState == "game" then
         -- Piirrä tausta vain pelitilassa
         love.graphics.draw(background, 0, 0, 0, love.graphics.getWidth() / background:getWidth(),
@@ -197,25 +247,64 @@ function love.draw()
             love.graphics.polygon("fill", platform.body:getWorldPoints(platform.shape:getPoints()))
         end
     elseif gameState == "paused" then
-        drawPaused()
+        drawMenu(menus.pause)
     end
 end
 
-function drawMenu()
-    love.graphics.clear(0.2, 0.2, 0.2)
-    love.graphics.printf("Main Menu", 0, 100, love.graphics.getWidth(), "center")
-    love.graphics.printf("Press Enter to Start", 0, 150, love.graphics.getWidth(), "center")
-    love.graphics.printf("Press Escape to Quit", 0, 200, love.graphics.getWidth(), "center")
+-- Yleinen valikkofunktio, joka toimii kaikille valikoille
+function drawMenu(menu)
+    love.graphics.clear(0.2, 0.2, 0.2) -- Taustan väri
+
+    local screenWidth = love.graphics.getWidth()
+    local screenHeight = love.graphics.getHeight()
+
+    local titleY = screenHeight / 4
+    local optionStartY = screenHeight / 2
+    local spacing = 50
+
+    -- Piirrä valikon otsikko
+    love.graphics.printf(menu.title, 0, titleY, screenWidth, "center")
+
+    for i, option in ipairs(menu.options) do
+        local y = optionStartY + (i - 1) * spacing
+        if i == selectedOption then
+            love.graphics.setColor(1, 1, 0) -- Korostusväri
+        else
+            love.graphics.setColor(1, 1, 1)
+        end
+        love.graphics.printf(option, 0, y, screenWidth, "center")
+    end
+
+    love.graphics.setColor(1, 1, 1) -- Palautetaan väri normaaliksi
 end
 
-function drawPaused()
-    love.graphics.clear(0.1, 0.1, 0.1)
-    love.graphics.printf("Game Paused", 0, 100, love.graphics.getWidth(), "center")
-    love.graphics.printf("Press Enter to Resume", 0, 150, love.graphics.getWidth(), "center")
-    love.graphics.printf("Press Escape to Return to Menu", 0, 200, love.graphics.getWidth(), "center")
-end
+-- Käsitellään valinnat
+function handleMenuSelection()
+    local menu = menus[currentMenu]
+    local choice = menu.options[selectedOption]
 
-function drawGame()
-    love.graphics.clear(0.1, 0.1, 0.3)
-    love.graphics.printf("Game Running! Press Escape to return to Menu", 0, 100, love.graphics.getWidth(), "center")
+    if currentMenu == "main" then
+        if choice == "Start Game" then
+            print("Game Started!")
+        elseif choice == "Options" then
+            currentMenu = "options"
+            selectedOption = 1
+        elseif choice == "Quit" then
+            love.event.quit()
+        end
+    elseif currentMenu == "options" then
+        if choice == "Sound: ON" then
+            print("Toggling Sound!")
+        elseif choice == "Back" then
+            currentMenu = "main"
+            selectedOption = 1
+        end
+    elseif currentMenu == "pause" then
+        if choice == "Resume" then
+            print("Resuming Game!")
+        elseif choice == "Main Menu" then
+            currentMenu = "main"
+            selectedOption = 1
+        end
+    end
 end
